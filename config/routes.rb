@@ -17,15 +17,14 @@ Rails.application.routes.draw do
       )
     end
 
-    # Admin authentication
+    # Admin authentication with custom redirect
     devise_for(
       Spree.admin_user_class.model_name.singular_route_key,
       class_name: Spree.admin_user_class.to_s,
       controllers: {
-        sessions: 'spree/admin/user_sessions',
-        passwords: 'spree/admin/user_passwords'
+        sessions: 'spree/admin/admin_users/sessions'
       },
-      skip: :registrations,
+      skip: [:registrations],
       path: :admin_user,
       router_name: :spree
     )

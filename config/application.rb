@@ -33,5 +33,12 @@ module SpreeStarter
 
     # https://github.com/rails/rails/issues/45826
     config.active_record.yaml_column_permitted_classes = [Symbol, BigDecimal, Date, Time, ActiveSupport::TimeWithZone, ActiveSupport::TimeZone, ActiveSupport::HashWithIndifferentAccess]
+
+    # Trust proxy headers from CloudFront/ALB
+    config.action_dispatch.trusted_proxies = [
+      '10.0.0.0/8',      # Your VPC CIDR
+      '172.16.0.0/12',   # Private networks
+      '192.168.0.0/16'   # Private networks
+    ]
   end
 end

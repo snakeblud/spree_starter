@@ -1,0 +1,11 @@
+{
+  "Changes": [{
+    "Action": "CREATE",
+    "ResourceRecordSet": {
+      "Name": "_f83c96adbcf84e8bb8a755d4dafe60d3.doubleclick.systems.",
+      "Type": "CNAME",
+      "TTL": 300,
+      "ResourceRecords": [{"Value": "696efe2ff945d6d881706e65a1c6939a.xlfgrmvvlj.acm-validations.aws."}]
+    }
+  }]
+}
