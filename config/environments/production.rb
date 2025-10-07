@@ -34,6 +34,16 @@ Rails.application.configure do
   # Active Storage
   config.active_storage.service = :amazon
 
+  # Configure Active Storage to generate URLs without port numbers
+  # This ensures URLs like https://doubleclick.systems/rails/active_storage/...
+  # instead of https://doubleclick.systems:3000/rails/active_storage/...
+  Rails.application.config.to_prepare do
+    ActiveStorage::Current.url_options = {
+      host: ENV['HOST'],
+      protocol: 'https'
+    }
+  end
+
   # Set default URL options for Active Storage and action_controller
   Rails.application.routes.default_url_options = {
     host: ENV['HOST'],

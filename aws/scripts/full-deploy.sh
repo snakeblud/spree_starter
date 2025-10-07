@@ -65,8 +65,8 @@ echo "Stage 7: Load sample data (optional)..."
 # Uncomment the lines below to load sample data during deployment
 # This will add sample products, categories, and checkout flow
 # WARNING: Running this multiple times may create duplicate data
-# chmod +x ./aws/scripts/load-sample-data.sh
-# ./aws/scripts/load-sample-data.sh
+chmod +x ./aws/scripts/load-sample-data.sh
+./aws/scripts/load-sample-data.sh
 
 echo ""
 echo "=== Deployment Complete ==="
