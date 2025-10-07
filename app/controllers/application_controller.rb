@@ -1,4 +1,4 @@
 class ApplicationController < ActionController::Base
-  # Temporarily disable CSRF protection to debug 422 issue
-  skip_forgery_protection
+  # CSRF protection is enabled by default
+  # CloudFront will properly forward the Host header
 end
