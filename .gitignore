@@ -47,3 +47,4 @@
 .env.production
 
 coverage
+ARCHITECTURE.md

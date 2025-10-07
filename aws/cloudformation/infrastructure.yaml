@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Spree Commerce - Private ALB with CloudFront VPC Origins, Multi-AZ, Auto-Scaling'
+Description: 'Spree Commerce - Internet Facing ALB with CloudFront, Multi-AZ, Auto-Scaling'
 
 Parameters:
   EnvironmentName:
