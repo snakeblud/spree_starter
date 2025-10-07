@@ -34,6 +34,17 @@ Rails.application.configure do
   # Active Storage
   config.active_storage.service = :amazon
 
+  # Set default URL options for Active Storage and action_controller
+  Rails.application.routes.default_url_options = {
+    host: ENV['HOST'],
+    protocol: 'https'
+  }
+
+  config.action_controller.default_url_options = {
+    host: ENV['HOST'],
+    protocol: 'https'
+  }
+
   # ------------------------------------------------------------------
   # âœ… SSL / HTTPS Enforcement
   # CloudFront terminates SSL, so Rails should not enforce SSL directly
