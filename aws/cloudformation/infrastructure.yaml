@@ -106,6 +106,27 @@ Resources:
         - Key: Name
           Value: !Sub ${EnvironmentName}-Private-Subnet-2
 
+  # Database Private Subnets (for RDS and Redis)
+  DBPrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.21.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-DB-Private-Subnet-1
+
+  DBPrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.22.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-DB-Private-Subnet-2
+
   # NAT Gateways
   NatGateway1EIP:
     Type: AWS::EC2::EIP
@@ -214,6 +235,49 @@ Resources:
       RouteTableId: !Ref PrivateRouteTable2
       SubnetId: !Ref PrivateSubnet2
 
+  # Database Route Tables
+  DBPrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-DB-Private-Routes-AZ1
+
+  DBPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref DBPrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  DBPrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref DBPrivateRouteTable1
+      SubnetId: !Ref DBPrivateSubnet1
+
+  DBPrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-DB-Private-Routes-AZ2
+
+  DBPrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref DBPrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  DBPrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref DBPrivateRouteTable2
+      SubnetId: !Ref DBPrivateSubnet2
+
   # S3 VPC Gateway Endpoint - Reduces NAT Gateway costs for S3 traffic
   # This is FREE and allows ECS tasks to reach S3 without going through NAT
   S3VPCEndpoint:
@@ -225,6 +289,8 @@ Resources:
       RouteTableIds:
         - !Ref PrivateRouteTable1
         - !Ref PrivateRouteTable2
+        - !Ref DBPrivateRouteTable1
+        - !Ref DBPrivateRouteTable2
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -373,8 +439,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: Subnet group for RDS
       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
+        - !Ref DBPrivateSubnet1
+        - !Ref DBPrivateSubnet2
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-DB-Subnet-Group
@@ -426,8 +492,8 @@ Resources:
     Properties:
       Description: Subnet group for Redis
       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
+        - !Ref DBPrivateSubnet1
+        - !Ref DBPrivateSubnet2
 
   RedisReplicationGroup:
     Type: AWS::ElastiCache::ReplicationGroup
@@ -1046,8 +1112,16 @@ Outputs:
     Value: !Ref PrivateSubnet1
 
   PrivateSubnet2Id:
-    Description: Private Subnet 2 ID
+    Description: Private Subnet 2 ID (ECS)
     Value: !Ref PrivateSubnet2
+
+  DBPrivateSubnet1Id:
+    Description: Database Private Subnet 1 ID
+    Value: !Ref DBPrivateSubnet1
+
+  DBPrivateSubnet2Id:
+    Description: Database Private Subnet 2 ID
+    Value: !Ref DBPrivateSubnet2
 
   NATGateway1IP:
     Description: NAT Gateway 1 Elastic IP
