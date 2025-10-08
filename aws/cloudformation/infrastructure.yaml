@@ -228,6 +228,14 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
+          # Allow ECR to access its S3 buckets for Docker image layers
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:GetObject
+            Resource:
+              - !Sub 'arn:aws:s3:::prod-${AWS::Region}-starport-layer-bucket/*'
+          # Allow application to access Active Storage S3 bucket
           - Effect: Allow
             Principal: '*'
             Action:

@@ -29,7 +29,9 @@ aws ecr get-login-password --region $REGION | \
     docker login --username AWS --password-stdin $ECR_URI
 
 echo "Building Docker image..."
-docker build --platform linux/amd64 --memory=4g -t spree-starter:$IMAGE_TAG .
+# Use docker buildx with --load to avoid manifest lists (ECS Fargate doesn't support them)
+# This creates a single-platform image that can be pulled directly
+docker buildx build --platform linux/amd64 --load -t spree-starter:$IMAGE_TAG .
 
 echo "Tagging image..."
 docker tag spree-starter:$IMAGE_TAG $ECR_URI:$IMAGE_TAG
