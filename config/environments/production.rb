@@ -28,7 +28,8 @@ Rails.application.configure do
   config.action_mailer.perform_caching = false
   config.action_mailer.default_url_options = {
     host: ENV['HOST'],
-    protocol: 'https'
+    protocol: 'https',
+    port: nil  # Explicitly remove port from URLs
   }
 
   # Active Storage
@@ -40,19 +41,22 @@ Rails.application.configure do
   Rails.application.config.to_prepare do
     ActiveStorage::Current.url_options = {
       host: ENV['HOST'],
-      protocol: 'https'
+      protocol: 'https',
+      port: nil  # Explicitly remove port from URLs
     }
   end
 
   # Set default URL options for Active Storage and action_controller
   Rails.application.routes.default_url_options = {
     host: ENV['HOST'],
-    protocol: 'https'
+    protocol: 'https',
+    port: nil  # Explicitly remove port from URLs
   }
 
   config.action_controller.default_url_options = {
     host: ENV['HOST'],
-    protocol: 'https'
+    protocol: 'https',
+    port: nil  # Explicitly remove port from URLs
   }
 
   # ------------------------------------------------------------------
