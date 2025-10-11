@@ -811,23 +811,6 @@ Resources:
 
         # Cache Behaviors - Order matters! Most specific paths first
         CacheBehaviors:
-          # Active Storage Direct Uploads (DO NOT cache, allow POST)
-          - PathPattern: /rails/active_storage/direct_uploads
-            TargetOriginId: vpc-alb-origin
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-            CachedMethods: [GET, HEAD, OPTIONS]
-            Compress: false
-            ForwardedValues:
-              QueryString: true
-              Cookies:
-                Forward: all
-              Headers:
-                - '*'
-            MinTTL: 0
-            DefaultTTL: 0       # No caching for upload endpoint
-            MaxTTL: 0
-
           # Static Assets: Product Images, Uploads (Cache 7 days)
           - PathPattern: /rails/active_storage/*
             TargetOriginId: vpc-alb-origin
@@ -1046,8 +1029,6 @@ Resources:
               Value: !Ref AWS::Region
             - Name: HOST
               Value: !Ref DomainName
-            - Name: RAILS_ASSET_HOST
-              Value: !Sub https://${DomainName}
           Secrets:
             - Name: DATABASE_URL
               ValueFrom: !Ref DatabaseURLSecret
@@ -1645,156 +1626,248 @@ Resources:
         - !Ref AlertTopic
       TreatMissingData: notBreaching
 
-# ==================== CloudWatch Dashboard ====================
-  MonitoringDashboard:
-    Type: AWS::CloudWatch::Dashboard
-    Properties:
-      DashboardName: !Sub ${EnvironmentName}-dashboard
-      DashboardBody: !Sub
-        - |
-          {
-            "widgets": [
-              {
-                "type": "metric",
-                "x": 0,
-                "y": 0,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    ["AWS/ECS", "CPUUtilization", "ClusterName", "${ClusterName}", "ServiceName", "${WebServiceName}"],
-                    ["AWS/ECS", "MemoryUtilization", "ClusterName", "${ClusterName}", "ServiceName", "${WebServiceName}"]
-                  ],
-                  "view": "timeSeries",
-                  "stacked": false,
-                  "region": "${Region}",
-                  "title": "Web Service - CPU & Memory",
-                  "period": 300,
-                  "stat": "Average",
-                  "yAxis": {
-                    "left": {
-                      "min": 0,
-                      "max": 100
-                    }
-                  }
-                }
+  # ==================== CloudWatch Dashboard ====================
+  # Temporarily disabled - will fix metric syntax
+  # MonitoringDashboard:
+  #   Type: AWS::CloudWatch::Dashboard
+  #   Properties:
+  #     DashboardName: !Sub ${EnvironmentName}-dashboard
+  #     DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "title": "ECS Web Service - CPU & Memory",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ECS", "CPUUtilization", {"stat": "Average", "label": "CPU %"}, {"dimensions": {"ClusterName": "${ECSCluster}", "ServiceName": "${WebService.Name}"}}],
+                  [".", "MemoryUtilization", {"stat": "Average", "label": "Memory %"}, {"dimensions": {"ClusterName": "${ECSCluster}", "ServiceName": "${WebService.Name}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0, "max": 100}}
               },
-              {
-                "type": "metric",
-                "x": 12,
-                "y": 0,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${ALBFullName}", {"stat": "Sum"}],
-                    ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${ALBFullName}"]
-                  ],
-                  "view": "timeSeries",
-                  "stacked": false,
-                  "region": "${Region}",
-                  "title": "ALB - Requests & Response Time",
-                  "period": 300,
-                  "stat": "Average"
-                }
+              "width": 12,
+              "height": 6,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "ECS Task Counts",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["ECS/ContainerInsights", "RunningTaskCount", {"stat": "Average", "label": "Web Tasks"}, {"dimensions": {"ClusterName": "${ECSCluster}", "ServiceName": "${WebService.Name}"}}],
+                  ["...", {"stat": "Average", "label": "Worker Tasks"}, {"dimensions": {"ClusterName": "${ECSCluster}", "ServiceName": "${WorkerService.Name}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0}}
               },
-              {
-                "type": "metric",
-                "x": 0,
-                "y": 6,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", "${ALBFullName}"],
-                    ["AWS/ApplicationELB", "HTTPCode_ELB_5XX_Count", "LoadBalancer", "${ALBFullName}"]
-                  ],
-                  "view": "timeSeries",
-                  "stacked": false,
-                  "region": "${Region}",
-                  "title": "ALB - 5xx Errors",
-                  "period": 300,
-                  "stat": "Sum"
-                }
+              "width": 12,
+              "height": 6,
+              "x": 12,
+              "y": 0
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "ALB Request Count & Response Time",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ApplicationELB", "RequestCount", {"stat": "Sum", "label": "Requests", "yAxis": "left"}, {"dimensions": {"LoadBalancer": "${ApplicationLoadBalancer.LoadBalancerFullName}"}}],
+                  [".", "TargetResponseTime", {"stat": "Average", "label": "Response Time (s)", "yAxis": "right"}, {"dimensions": {"LoadBalancer": "${ApplicationLoadBalancer.LoadBalancerFullName}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0}, "right": {"min": 0}}
               },
-              {
-                "type": "metric",
-                "x": 12,
-                "y": 6,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "${DBInstance}"],
-                    ["AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", "${DBInstance}"]
-                  ],
-                  "view": "timeSeries",
-                  "stacked": false,
-                  "region": "${Region}",
-                  "title": "RDS - CPU & Connections",
-                  "period": 300,
-                  "stat": "Average"
-                }
+              "width": 12,
+              "height": 6,
+              "x": 0,
+              "y": 6
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "ALB Error Rates (5xx)",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", {"stat": "Sum", "label": "Target 5xx", "color": "#d62728"}, {"dimensions": {"LoadBalancer": "${ApplicationLoadBalancer.LoadBalancerFullName}"}}],
+                  [".", "HTTPCode_ELB_5XX_Count", {"stat": "Sum", "label": "ELB 5xx", "color": "#ff7f0e"}, {"dimensions": {"LoadBalancer": "${ApplicationLoadBalancer.LoadBalancerFullName}"}}],
+                  [".", "HTTPCode_Target_4XX_Count", {"stat": "Sum", "label": "Target 4xx", "color": "#ffbb78"}, {"dimensions": {"LoadBalancer": "${ApplicationLoadBalancer.LoadBalancerFullName}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0}}
               },
-              {
-                "type": "metric",
-                "x": 0,
-                "y": 12,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    ["AWS/ElastiCache", "CPUUtilization", "ReplicationGroupId", "${RedisGroup}"],
-                    ["AWS/ElastiCache", "DatabaseMemoryUsagePercentage", "ReplicationGroupId", "${RedisGroup}"]
-                  ],
-                  "view": "timeSeries",
-                  "stacked": false,
-                  "region": "${Region}",
-                  "title": "Redis - CPU & Memory",
-                  "period": 300,
-                  "stat": "Average",
-                  "yAxis": {
-                    "left": {
-                      "min": 0,
-                      "max": 100
-                    }
-                  }
-                }
+              "width": 12,
+              "height": 6,
+              "x": 12,
+              "y": 6
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "ALB Target Health",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ApplicationELB", "HealthyHostCount", {"stat": "Average", "label": "Healthy", "color": "#2ca02c"}, {"dimensions": {"LoadBalancer": "${ApplicationLoadBalancer.LoadBalancerFullName}", "TargetGroup": "${TargetGroup.TargetGroupFullName}"}}],
+                  [".", "UnHealthyHostCount", {"stat": "Average", "label": "Unhealthy", "color": "#d62728"}, {"dimensions": {"LoadBalancer": "${ApplicationLoadBalancer.LoadBalancerFullName}", "TargetGroup": "${TargetGroup.TargetGroupFullName}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0}}
               },
-              {
-                "type": "metric",
-                "x": 12,
-                "y": 12,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    ["AWS/ECS", "CPUUtilization", "ClusterName", "${ClusterName}", "ServiceName", "${WorkerServiceName}"],
-                    ["AWS/ECS", "MemoryUtilization", "ClusterName", "${ClusterName}", "ServiceName", "${WorkerServiceName}"]
-                  ],
-                  "view": "timeSeries",
-                  "stacked": false,
-                  "region": "${Region}",
-                  "title": "Worker Service - CPU & Memory",
-                  "period": 300,
-                  "stat": "Average",
-                  "yAxis": {
-                    "left": {
-                      "min": 0,
-                      "max": 100
-                    }
-                  }
-                }
-              }
-            ]
-          }
-        - ClusterName: !Ref ECSCluster
-          WebServiceName: !GetAtt WebService.Name
-          WorkerServiceName: !GetAtt WorkerService.Name
-          ALBFullName: !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
-          DBInstance: !Ref PostgresDB
-          RedisGroup: !Ref RedisReplicationGroup
-          Region: !Ref AWS::Region
+              "width": 12,
+              "height": 6,
+              "x": 0,
+              "y": 12
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "RDS - CPU & Connections",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/RDS", "CPUUtilization", {"stat": "Average", "label": "CPU %", "yAxis": "left"}, {"dimensions": {"DBInstanceIdentifier": "${PostgresDB}"}}],
+                  [".", "DatabaseConnections", {"stat": "Average", "label": "Connections", "yAxis": "right"}, {"dimensions": {"DBInstanceIdentifier": "${PostgresDB}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0, "max": 100}, "right": {"min": 0}}
+              },
+              "width": 12,
+              "height": 6,
+              "x": 12,
+              "y": 12
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "RDS - Storage & IOPS",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/RDS", "FreeStorageSpace", {"stat": "Average", "label": "Free Storage (bytes)", "yAxis": "left"}, {"dimensions": {"DBInstanceIdentifier": "${PostgresDB}"}}],
+                  [".", "ReadIOPS", {"stat": "Average", "label": "Read IOPS", "yAxis": "right"}, {"dimensions": {"DBInstanceIdentifier": "${PostgresDB}"}}],
+                  [".", "WriteIOPS", {"stat": "Average", "label": "Write IOPS", "yAxis": "right"}, {"dimensions": {"DBInstanceIdentifier": "${PostgresDB}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0}, "right": {"min": 0}}
+              },
+              "width": 12,
+              "height": 6,
+              "x": 0,
+              "y": 18
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "RDS - Read/Write Latency",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/RDS", "ReadLatency", {"stat": "Average", "label": "Read Latency (s)"}, {"dimensions": {"DBInstanceIdentifier": "${PostgresDB}"}}],
+                  [".", "WriteLatency", {"stat": "Average", "label": "Write Latency (s)"}, {"dimensions": {"DBInstanceIdentifier": "${PostgresDB}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0}}
+              },
+              "width": 12,
+              "height": 6,
+              "x": 12,
+              "y": 18
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "RDS Read Replica - Lag",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/RDS", "ReplicaLag", {"stat": "Average", "label": "Replica Lag (s)"}, {"dimensions": {"DBInstanceIdentifier": "${PostgresReadReplica}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0}}
+              },
+              "width": 12,
+              "height": 6,
+              "x": 0,
+              "y": 24
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "Redis - CPU & Memory",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ElastiCache", "CPUUtilization", {"stat": "Average", "label": "CPU %"}, {"dimensions": {"ReplicationGroupId": "${RedisReplicationGroup}"}}],
+                  [".", "DatabaseMemoryUsagePercentage", {"stat": "Average", "label": "Memory %"}, {"dimensions": {"ReplicationGroupId": "${RedisReplicationGroup}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0, "max": 100}}
+              },
+              "width": 12,
+              "height": 6,
+              "x": 12,
+              "y": 24
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "Redis - Operations & Evictions",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ElastiCache", "CacheHits", {"stat": "Sum", "label": "Cache Hits", "color": "#2ca02c"}, {"dimensions": {"ReplicationGroupId": "${RedisReplicationGroup}"}}],
+                  [".", "CacheMisses", {"stat": "Sum", "label": "Cache Misses", "color": "#ff7f0e"}, {"dimensions": {"ReplicationGroupId": "${RedisReplicationGroup}"}}],
+                  [".", "Evictions", {"stat": "Sum", "label": "Evictions", "color": "#d62728"}, {"dimensions": {"ReplicationGroupId": "${RedisReplicationGroup}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0}}
+              },
+              "width": 12,
+              "height": 6,
+              "x": 0,
+              "y": 30
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "title": "ECS Worker Service - CPU & Memory",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ECS", "CPUUtilization", {"stat": "Average", "label": "CPU %"}, {"dimensions": {"ClusterName": "${ECSCluster}", "ServiceName": "${WorkerService.Name}"}}],
+                  [".", "MemoryUtilization", {"stat": "Average", "label": "Memory %"}, {"dimensions": {"ClusterName": "${ECSCluster}", "ServiceName": "${WorkerService.Name}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "period": 300,
+                "yAxis": {"left": {"min": 0, "max": 100}}
+              },
+              "width": 12,
+              "height": 6,
+              "x": 12,
+              "y": 30
+            }
+          ]
+        }
+  #     Comment out dashboard until syntax is fixed
 
 Conditions:
   HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
