@@ -174,6 +174,45 @@ aws logs delete-log-group \
     --log-group-name /ecs/${ENVIRONMENT} \
     --region $REGION 2>/dev/null || echo "Log group already deleted"
 
+# ==================== WAF WebACL Cleanup ====================
+echo ""
+echo "Step 12: Deleting WAF WebACL (us-east-1)..."
+WAF_STACK_NAME="spree-waf-cloudfront"
+WAF_REGION="us-east-1"
+
+# Check if WAF stack exists
+if aws cloudformation describe-stacks --stack-name $WAF_STACK_NAME --region $WAF_REGION 2>/dev/null; then
+    echo "Found WAF stack in us-east-1"
+
+    # Get CloudFront Distribution ID to disassociate
+    CLOUDFRONT_DIST_ID=$(aws cloudformation describe-stacks \
+        --stack-name $STACK_NAME \
+        --region $REGION \
+        --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+        --output text 2>/dev/null)
+
+    if [ ! -z "$CLOUDFRONT_DIST_ID" ] && [ "$CLOUDFRONT_DIST_ID" != "None" ]; then
+        echo "Disassociating WAF from CloudFront distribution: $CLOUDFRONT_DIST_ID"
+        aws wafv2 disassociate-web-acl \
+            --resource-arn "arn:aws:cloudfront::${ACCOUNT_ID}:distribution/${CLOUDFRONT_DIST_ID}" \
+            --scope CLOUDFRONT \
+            --region us-east-1 2>/dev/null || echo "WAF already disassociated or doesn't exist"
+
+        echo "Waiting 5 seconds for disassociation to complete..."
+        sleep 5
+    fi
+
+    # Delete WAF stack
+    echo "Deleting WAF CloudFormation stack..."
+    aws cloudformation delete-stack \
+        --stack-name $WAF_STACK_NAME \
+        --region $WAF_REGION 2>/dev/null || echo "Failed to delete WAF stack"
+
+    echo "WAF stack deletion initiated in us-east-1"
+else
+    echo "WAF stack not found or already deleted"
+fi
+
 echo ""
 echo "Waiting 30 seconds for resources to finish deleting..."
 echo "Press Ctrl+C if you want to proceed without waiting"

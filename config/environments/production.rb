@@ -77,6 +77,7 @@ Rails.application.configure do
   # This is safe because traffic is already filtered by CloudFront and ALB
   config.host_authorization = { exclude: ->(request) { true } }
 
+
   # ------------------------------------------------------------------
   # âœ… Session and Cookie Configuration for CloudFront/ALB
   # ------------------------------------------------------------------

@@ -93,7 +93,7 @@ echo ""
 aws cloudformation wait stack-create-complete --stack-name $STACK_NAME --region $REGION 2>/dev/null || \
 aws cloudformation wait stack-update-complete --stack-name $STACK_NAME --region $REGION 2>/dev/null || {
     echo ""
-    echo "⚠️  Stack deployment is still in progress or you exited the wait."
+    echo "  Stack deployment is still in progress or you exited the wait."
     echo ""
     echo "To check status:"
     echo "  aws cloudformation describe-stacks --stack-name $STACK_NAME --region $REGION --query 'Stacks[0].StackStatus'"
@@ -108,30 +108,19 @@ aws cloudformation wait stack-update-complete --stack-name $STACK_NAME --region 
 
 echo "✓ Stack deployment complete!"
 echo ""
-echo "Stage 2: Build and push Docker image..."
+echo "Stage 2: Deploy WAF for CloudFront (us-east-1)..."
+chmod +x ./aws/scripts/deploy-waf.sh
+./aws/scripts/deploy-waf.sh
+
+echo ""
+echo "Stage 3: Build and push Docker image..."
 chmod +x ./aws/scripts/build-and-push.sh
 ./aws/scripts/build-and-push.sh
 
 echo ""
-echo "Stage 3: Scale services to desired count..."
-aws ecs update-service \
-    --cluster ${ENVIRONMENT_NAME}-cluster \
-    --service ${ENVIRONMENT_NAME}-web \
-    --desired-count 2 \
-    --region $REGION
-
-aws ecs update-service \
-    --cluster ${ENVIRONMENT_NAME}-cluster \
-    --service ${ENVIRONMENT_NAME}-worker \
-    --desired-count 1 \
-    --region $REGION
-
-echo ""
-echo "Stage 4: Wait for services to stabilize..."
-aws ecs wait services-stable \
-    --cluster ${ENVIRONMENT_NAME}-cluster \
-    --services ${ENVIRONMENT_NAME}-web ${ENVIRONMENT_NAME}-worker \
-    --region $REGION
+echo "Stage 4: Scale services and deploy latest image..."
+chmod +x ./aws/scripts/update-services.sh
+ENVIRONMENT=${ENVIRONMENT_NAME} ./aws/scripts/update-services.sh
 
 echo ""
 echo "Stage 5: Run database setup..."
@@ -145,15 +134,23 @@ chmod +x ./aws/scripts/run-migrations.sh
 ./aws/scripts/run-migrations.sh
 
 echo ""
-echo "Stage 7: Load sample data (optional)..."
-# Uncomment the lines below to load sample data during deployment
+echo "Stage 7: Load sample data..."
 # This will add sample products, categories, and checkout flow
 # WARNING: Running this multiple times may create duplicate data
 chmod +x ./aws/scripts/load-sample-data.sh
 ./aws/scripts/load-sample-data.sh
 
 echo ""
+echo "========================================="
 echo "=== Deployment Complete ==="
+echo "========================================="
 echo ""
-echo "📝 Note: To load sample data manually, run:"
-echo "   ./aws/scripts/load-sample-data.sh"
+echo "✓ Infrastructure deployed in ${REGION}"
+echo "✓ WAF WebACL deployed in us-east-1 and associated with CloudFront"
+echo "✓ Docker image built and deployed"
+echo "✓ ECS services scaled up (2 web, 1 worker)"
+echo "✓ Database initialized and migrated"
+echo "✓ Sample data loaded"
+echo ""
+echo "Your Spree Commerce application is now running!"
+echo ""

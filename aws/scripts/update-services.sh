@@ -18,17 +18,19 @@ fi
 
 echo "Cluster: $CLUSTER"
 
-echo "Updating web service..."
+echo "Updating web service (desired count: 2)..."
 aws ecs update-service \
     --cluster $CLUSTER \
     --service ${ENVIRONMENT}-web \
+    --desired-count 2 \
     --force-new-deployment \
     --region $REGION
 
-echo "Updating worker service..."
+echo "Updating worker service (desired count: 1)..."
 aws ecs update-service \
     --cluster $CLUSTER \
     --service ${ENVIRONMENT}-worker \
+    --desired-count 1 \
     --force-new-deployment \
     --region $REGION
 

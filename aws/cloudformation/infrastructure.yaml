@@ -794,6 +794,9 @@ Resources:
 
 
   # ==================== CloudFront Distribution ====================
+  # Note: WAF WebACL for CloudFront must be created in us-east-1 in a separate stack
+  # See aws/cloudformation/waf-cloudfront.yaml
+  # After deploying WAF stack, manually associate it with CloudFront or use the deploy-waf.sh script
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
     Condition: HasDomainName
@@ -950,6 +953,10 @@ Resources:
               - Accept-Language
               - Authorization
               - User-Agent
+              - X-CSRF-Token
+              - X-Requested-With
+              - Origin
+              - Referer
           MinTTL: 0
           DefaultTTL: 0            # No caching for dynamic content
           MaxTTL: 0

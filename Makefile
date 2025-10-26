@@ -1,9 +1,11 @@
-.PHONY: deploy build update migrate setup logs destroy force-cleanup check-cleanup full-deploy outputs scale-up help
+.PHONY: deploy build update migrate setup logs destroy force-cleanup check-cleanup full-deploy outputs scale-up create-bucket deploy-waf help
 
 STACK_NAME = spree-commerce-stack
 REGION = ap-southeast-1
 ENVIRONMENT = spree-production
 ENV ?= production
+ACCOUNT_ID = $(shell aws sts get-caller-identity --query Account --output text)
+S3_BUCKET = cf-templates-$(ACCOUNT_ID)-$(REGION)
 
 deploy:
 	@chmod +x aws/scripts/deploy-stack.sh
@@ -64,6 +66,7 @@ destroy:
 	@echo "  - CloudWatch log groups"
 	@echo "  - VPC and all networking resources"
 	@echo "  - CloudFront distribution"
+	@echo "  - WAF WebACL"
 	@echo "========================================="
 	@read -p "Type 'DELETE' (all caps) to confirm: " CONFIRM; \
 	if [ "$$CONFIRM" = "DELETE" ]; then \
@@ -89,27 +92,29 @@ full-deploy:
 	@aws/scripts/full-deploy.sh
 
 scale-up:
-	@echo "Scaling ECS services to desired count..."
-	@aws ecs update-service \
-		--cluster $(ENVIRONMENT)-cluster \
-		--service $(ENVIRONMENT)-web \
-		--desired-count 2 \
+	@chmod +x aws/scripts/update-services.sh
+	@ENVIRONMENT=$(ENVIRONMENT) aws/scripts/update-services.sh
+
+create-bucket:
+	@echo "Creating S3 bucket for CloudFormation templates..."
+	@echo "Bucket name: $(S3_BUCKET)"
+	@aws s3 mb s3://$(S3_BUCKET) --region $(REGION) 2>/dev/null || echo "Bucket already exists or error occurred"
+	@echo "Enabling versioning on bucket..."
+	@aws s3api put-bucket-versioning \
+		--bucket $(S3_BUCKET) \
+		--versioning-configuration Status=Enabled \
 		--region $(REGION)
-	@aws ecs update-service \
-		--cluster $(ENVIRONMENT)-cluster \
-		--service $(ENVIRONMENT)-worker \
-		--desired-count 1 \
-		--region $(REGION)
-	@echo "Services scaled up. Waiting for services to stabilize..."
-	@aws ecs wait services-stable \
-		--cluster $(ENVIRONMENT)-cluster \
-		--services $(ENVIRONMENT)-web $(ENVIRONMENT)-worker \
-		--region $(REGION)
-	@echo "✓ Services are stable and running!"
+	@echo "✓ S3 bucket ready: s3://$(S3_BUCKET)"
+
+deploy-waf:
+	@chmod +x aws/scripts/deploy-waf.sh
+	@aws/scripts/deploy-waf.sh
 
 help:
 	@echo "Available commands:"
+	@echo "  make create-bucket    - Create S3 bucket for CloudFormation templates"
 	@echo "  make deploy           - Deploy/update CloudFormation stack"
+	@echo "  make deploy-waf       - Deploy WAF WebACL for CloudFront (us-east-1)"
 	@echo "  make build            - Build and push Docker image"
 	@echo "  make scale-up         - Scale ECS services to desired count (2 web, 1 worker)"
 	@echo "  make setup            - Run DB migrations and seed data (includes store config)"
