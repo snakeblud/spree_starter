@@ -1,106 +1,338 @@
-# Spree Starter
+# Spree Starter - AWS Cloud Deployment
 
-This is a starter kit for [Spree Commerce](https://spreecommerce.org) - the [open-source eCommerce platform](https://spreecommerce.org) for [Rails](https://spreecommerce.org/category/ruby-on-rails/). 
+This is a production-ready cloud deployment of [Spree Commerce](https://spreecommerce.org) on AWS with CloudFront CDN, WAF security, and auto-scaling capabilities.
 
-It is a great starting point for any Rails developer to quickly build an eCommerce application.
+## Architecture Overview
 
-This starter uses:
+This deployment uses a fully managed AWS infrastructure including:
 
-* **[Spree Commerce 5](https://spreecommerce.org/announcing-spree-5-the-biggest-open-source-release-ever/)**, the biggest release ever, which includes Admin Dashboard, API and Storefront - everything you need to start developing your new eCommerce application/store/marketeplace
-* Stripe for payment processing, thanks to the official [Spree Stripe gem](https://github.com/spree/spree_stripe)
-* Google Analytics 4 integration, thanks to the official [Spree Google Analytics gem](https://github.com/spree/spree_google_analytics)
-* Klaviyo integration, thanks to the official [Spree Klaviyo gem](https://github.com/spree/spree_klaviyo)
-* [Devise](https://github.com/heartcombo/devise) for authentication
-* [Sidekiq](https://github.com/mperham/sidekiq) for background jobs
-* PostgreSQL as a database
-* Redis for caching
-* (Optional) [Sentry](https://sentry.io) for error/performance monitoring
-* (Optional) [SendGrid](https://sendgrid.com) for transactional email notifications
+* **[Spree Commerce 5](https://spreecommerce.org/announcing-spree-5-the-biggest-open-source-release-ever/)** - Admin Dashboard, API, and Storefront
+* **AWS ECS Fargate** - Containerized application hosting (auto-scaling)
+* **Amazon RDS PostgreSQL** - Primary database with read replica
+* **Amazon ElastiCache Redis** - Session storage and caching
+* **CloudFront CDN** - Global content delivery with caching
+* **AWS WAF** - Web Application Firewall for DDoS and security protection
+* **Application Load Balancer** - Traffic distribution across containers
+* **Amazon S3** - Asset storage (images, uploads)
+* **AWS Secrets Manager** - Secure credential management
+* **CloudWatch** - Monitoring, logging, and alerting
+* **Stripe** for payment processing
+* **Google Analytics 4** integration
+* **Klaviyo** integration
+* **[Sidekiq](https://github.com/mperham/sidekiq)** for background jobs
 
-You don't need to install additional tools or libraries to start developing with Spree Starter. Everything is already set up for you.
+## AWS Deployment
 
-If you like what you see, consider giving this repo a GitHub star :star:
+### Prerequisites
 
-Thank you for supporting Spree open-source :heart:
+1. AWS Account with appropriate permissions
+2. AWS CLI installed and configured: `aws configure`
+3. Docker installed locally
+4. Domain name configured in Route 53
+5. SSL certificate in ACM (us-east-1 region for CloudFront)
 
-## Local Installation
+### Initial Setup
 
-Please follow [Spree Quickstart guide](https://spreecommerce.org/docs/developer/getting-started/quickstart) to setup your Spree application using the Spree starter.
+1. **Configure your environment**
 
-## Deployment
+   Edit `aws/config/production.env` with your settings:
+   ```bash
+   ENVIRONMENT_NAME=spree-production
+   REGION=ap-southeast-1
+   DB_PASSWORD=your-secure-password
+   DOMAIN_NAME=yourdomain.com
+   HOSTED_ZONE_ID=Z0123456789ABC
+   CERTIFICATE_ARN=arn:aws:acm:us-east-1:123456789:certificate/...
+   ALERT_EMAIL=your-email@example.com
+   ```
 
-Please follow [Deployment guide](https://spreecommerce.org/docs/developer/deployment/render) to quickly deploy your production-ready Spree application.
+2. **Create S3 bucket for CloudFormation templates**
+   ```bash
+   make create-bucket
+   ```
+
+### Full Deployment (Recommended)
+
+Deploy everything in one command:
+
+```bash
+make full-deploy
+```
+
+This will:
+1. Deploy infrastructure (VPC, ECS, RDS, Redis, CloudFront, ALB)
+2. Deploy WAF WebACL in us-east-1 and associate with CloudFront
+3. Build and push Docker image to ECR
+4. Scale ECS services (2 web, 1 worker)
+5. Run database setup and migrations
+6. Load sample data and CMS content
+
+**Deployment takes ~20-30 minutes.**
+
+### Manual Step-by-Step Deployment
+
+If you prefer to deploy step-by-step:
+
+```bash
+# 1. Deploy infrastructure
+make deploy
+
+# 2. Deploy WAF for CloudFront (in us-east-1)
+make deploy-waf
+
+# 3. Build and push Docker image
+make build
+
+# 4. Scale services and deploy
+make scale-up
+
+# 5. Initialize database
+make setup
+
+# 6. Run migrations
+make migrate
+```
+
+## Available Make Commands
+
+```bash
+make create-bucket    # Create S3 bucket for CloudFormation templates
+make deploy           # Deploy/update CloudFormation stack
+make deploy-waf       # Deploy WAF WebACL for CloudFront (us-east-1)
+make build            # Build and push Docker image to ECR
+make scale-up         # Scale ECS services (2 web, 1 worker) and deploy
+make update           # Force new deployment with latest image
+make setup            # Run DB migrations and seed data
+make migrate          # Run database migrations only
+make logs             # View application logs
+make outputs          # Show CloudFormation stack outputs
+make full-deploy      # Complete deployment from scratch (all stages)
+make force-cleanup    # Force cleanup stuck resources
+make destroy          # Delete the entire stack (requires confirmation)
+make help             # Show all available commands
+```
+
+## Accessing Your Application
+
+After deployment completes:
+
+### Storefront
+Visit: `https://yourdomain.com`
+
+### Admin Dashboard
+Visit: `https://yourdomain.com/admin`
+
+**Default Admin Credentials:**
+- Email: `admin@yourdomain.com`
+- Password: `admin123456` (or value set in `ADMIN_PASSWORD` env var)
+
+**Important:** Change the default password immediately after first login!
+
+## Configuration Files
+
+### Application Configuration
+- `aws/config/production.env` - Production environment variables
+- `config/environments/production.rb` - Rails production settings
+
+### Infrastructure as Code
+- `aws/cloudformation/infrastructure.yaml` - Main infrastructure stack
+- `aws/cloudformation/waf-cloudfront.yaml` - WAF WebACL for CloudFront
+
+### Deployment Scripts
+- `aws/scripts/full-deploy.sh` - Complete deployment automation
+- `aws/scripts/deploy-stack.sh` - Deploy infrastructure
+- `aws/scripts/deploy-waf.sh` - Deploy and associate WAF
+- `aws/scripts/build-and-push.sh` - Build Docker image
+- `aws/scripts/update-services.sh` - Update ECS services
+- `aws/scripts/initial-setup.sh` - Database initialization
+- `aws/scripts/run-migrations.sh` - Run migrations
+- `aws/scripts/load-sample-data.sh` - Load sample products/content
+- `aws/scripts/force-cleanup.sh` - Cleanup resources
+
+## Monitoring & Logs
+
+### View Application Logs
+```bash
+make logs
+```
+
+### CloudWatch Dashboard
+- Go to AWS Console → CloudWatch → Dashboards
+- Select `spree-production-dashboard`
+- View metrics for CPU, memory, errors, database connections
+
+### CloudWatch Alarms
+Alerts are configured for:
+- High CPU utilization (>80%)
+- High memory utilization (>85%)
+- High error rate (>10 errors/min)
+- High database connections (>80%)
+
+Alerts are sent to the email specified in `ALERT_EMAIL`.
+
+### WAF Monitoring
+- Go to AWS Console → WAF & Shield (us-east-1 region)
+- View blocked requests and security metrics
+- Monitor rate limiting and bot blocking
+
+## Scaling
+
+### Manual Scaling
+Adjust the desired count in `aws/scripts/update-services.sh`:
+```bash
+# Edit the script to change from 2/1 to your desired count
+WEB_DESIRED_COUNT=4    # Number of web containers
+WORKER_DESIRED_COUNT=2 # Number of worker containers
+```
+
+Then deploy:
+```bash
+make update
+```
+
+### Auto-Scaling
+The infrastructure is configured for auto-scaling based on CPU utilization:
+- Web services: Scale between 2-10 instances
+- Worker services: Scale between 1-5 instances
+- Target CPU: 70%
+
+## Updating Your Application
+
+After making code changes:
+
+```bash
+# Build new Docker image and deploy
+make build
+make update
+```
+
+## Database Backups
+
+- **Automated Backups**: Enabled with 7-day retention
+- **Manual Snapshots**: Create via AWS Console → RDS → Snapshots
+
+## Destroying the Stack
+
+**WARNING:** This deletes ALL resources including database and S3 data!
+
+```bash
+make destroy
+```
+
+You will be prompted to type `DELETE` (all caps) to confirm.
+
+## Security Features
+
+### WAF Protection
+- AWS Managed Rules (Core, Known Bad Inputs, SQL Injection, Linux OS)
+- Rate limiting (2000 requests per 5 minutes per IP)
+- Bot blocking (allows legitimate bots like Googlebot)
+- Admin paths are excluded from aggressive rules
+
+### Network Security
+- Private subnets for application and database
+- NAT Gateways for outbound internet access
+- Security groups restricting traffic between layers
+- SSL/TLS encryption (ACM certificate)
+
+### Application Security
+- CSRF protection enabled
+- Secure session cookies
+- Environment variables via Secrets Manager
+- No hardcoded credentials
+
+## Cost Optimization
+
+Estimated monthly cost: **~$200-400/month** depending on traffic
+
+**Cost breakdown:**
+- ECS Fargate: ~$50-100
+- RDS (db.t4g.medium): ~$70
+- ElastiCache (cache.t4g.micro): ~$15
+- ALB: ~$20
+- NAT Gateways: ~$35
+- CloudFront: Variable (first 1TB free)
+- WAF: $5 + $1 per million requests
+- Data transfer: Variable
+
+**Cost saving tips:**
+- Use reserved instances for RDS if long-term
+- Scale down dev/staging environments when not in use
+- Use CloudFront caching aggressively
+- Monitor and optimize S3 storage
+
+## Troubleshooting
+
+### Deployment Issues
+
+**Stack creation fails:**
+```bash
+# Check CloudFormation events
+aws cloudformation describe-stack-events \
+  --stack-name spree-commerce-stack \
+  --region ap-southeast-1 | less
+```
+
+**ECS tasks not starting:**
+```bash
+# Check ECS task status
+aws ecs describe-services \
+  --cluster spree-production-cluster \
+  --services spree-production-web \
+  --region ap-southeast-1
+```
+
+**View container logs:**
+```bash
+make logs
+```
+
+### Application Issues
+
+**422 errors on admin login:**
+- Verify you're using correct admin email: `admin@yourdomain.com`
+- Check CloudFront is forwarding all necessary headers
+- Ensure latest code is deployed: `make build && make update`
+
+**Assets not loading:**
+- Check S3 bucket permissions
+- Verify CloudFront distribution is active
+- Create CloudFront invalidation: `make invalidate`
+
+**Database connection errors:**
+- Check RDS instance is running
+- Verify security group rules
+- Check Secrets Manager has correct credentials
+
+## Local Development
+
+For local development instructions, see [Spree Quickstart guide](https://spreecommerce.org/docs/developer/getting-started/quickstart).
 
 ## Customizing
 
-Please follow [Customization guide](https://spreecommerce.org/docs/developer/customization/quickstart) to learn how to customize and extend your Spree application.
+Follow [Customization guide](https://spreecommerce.org/docs/developer/customization/quickstart) to learn how to customize and extend your Spree application.
 
-## Running tests
+## Running Tests
 
-This repository is pre-configured for running tests of your Spree customizations. To run the full test suite, just type:
+This repository is pre-configured for running tests:
 
 ```bash
 bundle exec rspec
 ```
 
-## Spree 5 Announcement & Demo
 
-[![Spree Commerce 5 version](https://vendo-production-res.cloudinary.com/image/upload/w_2000/q_auto/v1742985405/docs/github/Spree_Commerce_open-source_eCommerce_myzurl.jpg)](https://spreecommerce.org/announcing-spree-5-the-biggest-open-source-release-ever/)
+## Enterprise Edition
 
-We’re thrilled to unveil [Spree 5](https://spreecommerce.org/announcing-spree-5-the-biggest-open-source-release-ever/
-) — the most powerful and feature-packed open-source release in Spree Commerce’s history, including:
-- A completely revamped Admin Dashboard experience: boost your team's productivity 
-- A Mobile-First, No-code Customizable Storefront: raise conversions and loyalty
-- New integrations: a native [Stripe integration](https://github.com/spree/spree_stripe), and also Stripe Connect, Klaviyo integrations available with the Enterprise Edition
-- Enterprise Edition Admin Features: Audit Log, [Multi-Vendor Marketplace](https://spreecommerce.org/marketplace-ecommerce/), [Multi-tenant / White-label SaaS eCommerce](https://spreecommerce.org/multi-tenant-white-label-ecommerce/)
+[Spree Enterprise Edition](https://spreecommerce.org/spree-commerce-version-comparison-community-edition-vs-enterprise-edition/) provides:
+* Multi-vendor marketplace capabilities
+* B2B eCommerce features
+* Multi-tenant/white-label SaaS
+* Advanced integrations (Stripe Connect, etc.)
+* Audit logging
+* Enterprise support
 
-Read the [full Spree 5 announcement here](https://spreecommerce.org/announcing-spree-5-the-biggest-open-source-release-ever/).
+[Contact Sales](https://spreecommerce.org/get-started/) to learn more.
 
-Check out the [Spree 5 demo](https://demo.spreecommerce.org/) for yourself.
+## License
 
-## Troubleshooting
-
-### libvips error
-
-If you encounter an error like the following:
-
-```bash
-LoadError: Could not open library 'vips.so.42'
-```
-
-Please check that libvips is installed with `vips -v`, and if it is not installed, follow [installation instructions here](https://www.libvips.org/install.html).
-
-## Join the Community 
-
-[Join our Slack](https://slack.spreecommerce.org) to meet other 6k+ community members and get some support.
-
-## Need more support?
-
-[Contact us](https://spreecommerce.org/contact/) for enterprise support and custom development services. We offer:
-  * migrations and upgrades,
-  * delivering your Spree application,
-  * optimizing your Spree stack.
-
-## Enterprise Edition 
-
-Besides enterprise support we also offer the Spree Commerce [Enterprise Edition](https://spreecommerce.org/spree-commerce-version-comparison-community-edition-vs-enterprise-edition/) that gives you all the tools you need to launch your store or marketplace and provides you with ready-to-use integrations that will reduce your project's development time and cost.
-
-With the Enterprise Edition you could build:
-
-### A [Multi-vendor marketplace](https://spreecommerce.org/use-cases/multi-vendor-marketplace-demo/)
-Run your own marketplace with multiple suppliers, each with a dedicated supplier dashboard
-<img alt="Spree Commerce - Marketplace" src="https://github.com/spree/spree/assets/12614496/c4ddd118-df4c-464e-b1fe-d43862e5cf25">
-
-### A [B2B eCommerce](https://spreecommerce.org/use-cases/headless-b2b-ecommerce/)
-Start capturing 6+ figure orders from resellers with safe payments and a checkout process that fits your business model
-<img alt="Spree Commerce - B2B eCommerce" src="https://github.com/spree/spree/assets/12614496/e0a184f6-31ad-4f7f-b30b-6f8a501b6f63">
-
-### [Wholesale eCommerce](https://spreecommerce.org/use-cases/wholesale-ecommerce/)
-Run your wholesale operation the way your retail partners expect
-<img alt="Spree Commerce - Wholesale" src="https://github.com/spree/spree/assets/12614496/bac1e551-f629-47d6-a983-b385aa65b1bd">
-
-### A [white-label SaaS or multi-tenant eCommerce](https://spreecommerce.org/multi-tenant-white-label-ecommerce/) platform
-Launch a [multi-tenant eCommerce platform](https://spreecommerce.org/multi-tenant-white-label-ecommerce/) for your customers, resellers, affiliates in any configuration, eg. B2B2B, B2B2C, B2B2E
-<img alt="Spree Commerce - Multi-store" src="https://github.com/spree/spree/assets/12614496/cf651354-6180-4927-973f-c650b80ccdb0">
-
-To get access to Spree Enterprise (Vendo), contact our [Sales team](https://spreecommerce.org/get-started/)
+Spree Commerce is released under the [BSD-3-Clause License](https://opensource.org/licenses/BSD-3-Clause).
